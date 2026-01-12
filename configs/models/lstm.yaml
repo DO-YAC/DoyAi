@@ -1,0 +1,5 @@
+name: lstm
+input_dim: 10
+hidden_dim: 20
+layer_dim: 2
+output_dim: 1

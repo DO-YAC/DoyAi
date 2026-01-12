@@ -1,0 +1,7 @@
+defaults:
+  - models: lstm
+  - _self_
+
+learning_rate: 0.001
+epochs: 10
+batch_size: 32

@@ -1,0 +1,17 @@
+# --- Configuration & Environment ---
+hydra-core
+python-dotenv
+omegaconf
+
+# --- Experiment Tracking & Logging ---
+wandb
+tqdm
+
+# --- Data Processing ---
+numpy
+pandas
+scikit-learn
+
+# --- Optional but Recommended ---
+matplotlib
+pillow

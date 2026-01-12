@@ -1,0 +1,7 @@
+.env
+eurusd_lstm.onnx
+eurusd_lstm.pt
+main.ipynb
+outputs/
+wandb/
+__pycache__/
