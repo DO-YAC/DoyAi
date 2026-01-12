@@ -1,5 +1,5 @@
 .env
-eurusd_lstm.onnx
+eurusd_lstm.onnx    
 eurusd_lstm.pt
 main.ipynb
 outputs/
