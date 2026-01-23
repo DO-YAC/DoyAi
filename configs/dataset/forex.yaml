@@ -1,0 +1,25 @@
+# Forex Dataset Configuration
+name: forex
+ticker: EURUSD
+
+features:
+  - o
+  - h
+  - l
+  - c
+
+sequence_length: 60
+prediction_horizon: 1
+
+train_ratio: 0.7
+val_ratio: 0.15
+test_ratio: 0.15
+
+scaler_type: minmax
+
+mongodb_uri: null
+mongodb_database: EURUSD
+mongodb_collection: tf_M1
+
+start_date: null
+end_date: null

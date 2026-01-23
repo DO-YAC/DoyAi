@@ -11,6 +11,7 @@ tqdm
 numpy
 pandas
 scikit-learn
+pymongo
 
 # --- Optional but Recommended ---
 matplotlib
