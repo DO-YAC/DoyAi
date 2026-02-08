@@ -15,8 +15,7 @@ from utils.checkpoint import CheckpointManager
 from utils.exporter import ModelExporter
 from data import create_dataloaders
 
-
-def _resolve_run_number(ticker: str, model_name: str) -> str:
+def resolve_run_number(ticker: str, model_name: str) -> str:
     """Atomically allocate the next run number by creating a run_NNN directory."""
     model_dir = Path("outputs") / f"{ticker}_{model_name}"
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -29,9 +28,7 @@ def _resolve_run_number(ticker: str, model_name: str) -> str:
         except FileExistsError:
             n += 1
 
-
-OmegaConf.register_new_resolver("run_number", _resolve_run_number)
-
+OmegaConf.register_new_resolver("run_number", resolve_run_number)
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
 def train(cfg):
