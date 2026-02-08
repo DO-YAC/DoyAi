@@ -96,6 +96,12 @@ class CheckpointManager:
                 model, optimizer, epoch, metrics, pipeline
             )
 
+            if not self.save_best_only:
+                epoch_path = self.checkpoint_dir / self.format_filename(epoch)
+                torch.save(checkpoint, epoch_path)
+                saved_path = str(epoch_path)
+                print(f"Saved epoch checkpoint: {epoch_path.name}")
+
             if is_best:
                 best_path = self.checkpoint_dir / self.format_filename(epoch, "best")
                 torch.save(checkpoint, best_path)

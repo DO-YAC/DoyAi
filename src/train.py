@@ -17,17 +17,17 @@ from data import create_dataloaders
 
 
 def _resolve_run_number(ticker: str, model_name: str) -> str:
-    """Find the next run number by scanning existing run_NNN directories."""
+    """Atomically allocate the next run number by creating a run_NNN directory."""
     model_dir = Path("outputs") / f"{ticker}_{model_name}"
-    if not model_dir.exists():
-        return "001"
-    existing = [
-        int(m.group(1))
-        for d in model_dir.iterdir()
-        if d.is_dir() and (m := re.match(r"run_(\d+)", d.name))
-    ]
-    next_num = max(existing) + 1 if existing else 1
-    return f"{next_num:03d}"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    n = 1
+    while True:
+        run_dir = model_dir / f"run_{n:03d}"
+        try:
+            run_dir.mkdir()
+            return f"{n:03d}"
+        except FileExistsError:
+            n += 1
 
 
 OmegaConf.register_new_resolver("run_number", _resolve_run_number)
