@@ -7,7 +7,7 @@ load_dotenv()
 
 def setup_wandb(cfg: DictConfig):
     """
-    Handles automatic login and initializes a team-based W&B run.
+    Handles automatic login and initializes a W&B run.
     """
     api_key = os.getenv("WANDB_API_KEY")
     if api_key:

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 import torch
 from omegaconf import DictConfig
+from utils.serialization import serialize_scaler
 
 
 class ModelExporter:
@@ -106,23 +107,9 @@ class ModelExporter:
         }
 
         if pipeline is not None and pipeline.scaler is not None:
-            scaler = pipeline.scaler
-            if hasattr(scaler, "data_min_") and hasattr(scaler, "data_max_"):
-                export_dict["scaler"] = {
-                    "type": "minmax",
-                    "data_min_": scaler.data_min_.tolist(),
-                    "data_max_": scaler.data_max_.tolist(),
-                    "scale_": scaler.scale_.tolist(),
-                    "min_": scaler.min_.tolist(),
-                    "feature_range": scaler.feature_range,
-                }
-            elif hasattr(scaler, "mean_") and hasattr(scaler, "var_"):
-                export_dict["scaler"] = {
-                    "type": "standard",
-                    "mean_": scaler.mean_.tolist(),
-                    "var_": scaler.var_.tolist(),
-                    "scale_": scaler.scale_.tolist(),
-                }
+            scaler_data = serialize_scaler(pipeline.scaler)
+            if scaler_data is not None:
+                export_dict["scaler"] = scaler_data
 
         torch.save(export_dict, path)
         return str(path)

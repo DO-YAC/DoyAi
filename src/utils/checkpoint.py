@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import torch
 from omegaconf import OmegaConf, DictConfig
+from utils.serialization import serialize_scaler
 
 
 class CheckpointManager:
@@ -101,7 +102,6 @@ class CheckpointManager:
                 saved_path = str(best_path)
                 print(f"Saved best checkpoint: {best_path.name}")
 
-                # Save best model at run root for easy access
                 run_root_best = self.checkpoint_dir.parent / "best.pt"
                 torch.save(checkpoint, run_root_best)
 
@@ -136,24 +136,9 @@ class CheckpointManager:
             checkpoint["optimizer_state_dict"] = optimizer.state_dict()
 
         if self.save_scaler and pipeline is not None:
-            scaler = pipeline.scaler
-            if hasattr(scaler, "data_min_") and hasattr(scaler, "data_max_"):
-                checkpoint["scaler"] = {
-                    "type": "minmax",
-                    "data_min_": scaler.data_min_.tolist(),
-                    "data_max_": scaler.data_max_.tolist(),
-                    "data_range_": scaler.data_range_.tolist(),
-                    "scale_": scaler.scale_.tolist(),
-                    "min_": scaler.min_.tolist(),
-                    "feature_range": scaler.feature_range,
-                }
-            elif hasattr(scaler, "mean_") and hasattr(scaler, "var_"):
-                checkpoint["scaler"] = {
-                    "type": "standard",
-                    "mean_": scaler.mean_.tolist(),
-                    "var_": scaler.var_.tolist(),
-                    "scale_": scaler.scale_.tolist(),
-                }
+            scaler_data = serialize_scaler(pipeline.scaler)
+            if scaler_data is not None:
+                checkpoint["scaler"] = scaler_data
 
         return checkpoint
 
