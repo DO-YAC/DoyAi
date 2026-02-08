@@ -1,15 +1,45 @@
+import re
+from pathlib import Path
+
 import torch
 import torch.nn as nn
+import hydra_zen  # noqa: F401 -- patches hydra for Python 3.14 compat
 import hydra
+from omegaconf import OmegaConf, open_dict
+from hydra.core.hydra_config import HydraConfig
 from tqdm import tqdm
 
 from utils.factory import get_model
 from utils.logger import setup_wandb
+from utils.checkpoint import CheckpointManager
+from utils.exporter import ModelExporter
 from data import create_dataloaders
+
+
+def _resolve_run_number(ticker: str, model_name: str) -> str:
+    """Find the next run number by scanning existing run_NNN directories."""
+    model_dir = Path("outputs") / f"{ticker}_{model_name}"
+    if not model_dir.exists():
+        return "001"
+    existing = [
+        int(m.group(1))
+        for d in model_dir.iterdir()
+        if d.is_dir() and (m := re.match(r"run_(\d+)", d.name))
+    ]
+    next_num = max(existing) + 1 if existing else 1
+    return f"{next_num:03d}"
+
+
+OmegaConf.register_new_resolver("run_number", _resolve_run_number)
 
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
 def train(cfg):
+    output_dir = Path(HydraConfig.get().runtime.output_dir)
+    with open_dict(cfg):
+        cfg.checkpoint.dir = str(output_dir / cfg.checkpoint.dir)
+        cfg.export.dir = str(output_dir) if cfg.export.dir == "." else str(output_dir / cfg.export.dir)
+
     run = setup_wandb(cfg)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -22,9 +52,15 @@ def train(cfg):
     loss_fn = nn.MSELoss() 
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
 
-    best_val_loss = float("inf")
+    checkpoint_manager = CheckpointManager(cfg)
+    start_epoch = 0
 
-    for epoch in range(cfg.epochs):
+    if checkpoint_manager.should_resume():
+        checkpoint = checkpoint_manager.load(model, optimizer, device=device)
+        start_epoch = checkpoint["epoch"] + 1
+        print(f"Resuming training from epoch {start_epoch}")
+
+    for epoch in range(start_epoch, cfg.epochs):
         model.train()
         train_loss = 0.0
 
@@ -67,9 +103,9 @@ def train(cfg):
 
         print(f"Epoch {epoch+1}/{cfg.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            print(f"  -> New best validation loss!")
+        # Save checkpoint
+        metrics = {"train_loss": train_loss, "val_loss": val_loss}
+        checkpoint_manager.save(model, optimizer, epoch, metrics, pipeline)
 
     model.eval()
     test_loss = 0.0
@@ -87,6 +123,13 @@ def train(cfg):
     test_loss /= len(test_loader)
     print(f"\nFinal Test Loss: {test_loss:.6f}")
     run.log({"test/loss": test_loss})
+
+    # Export model after training
+    exporter = ModelExporter(cfg)
+    exported_paths = exporter.export(model, pipeline, device)
+
+    if exported_paths:
+        run.log({"exported_formats": list(exported_paths.keys())})
 
     run.finish()
 
