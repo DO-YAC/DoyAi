@@ -71,8 +71,6 @@ class ModelExporter:
                     path = self.export_pytorch(model, pipeline)
                 elif fmt == "onnx":
                     path = self.export_onnx(model, device)
-                elif fmt == "torchscript":
-                    path = self.export_torchscript(model, device)
                 else:
                     print(f"  -> Unknown format: {fmt}, skipping")
                     continue
