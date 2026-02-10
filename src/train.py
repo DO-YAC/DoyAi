@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-import hydra_zen  # noqa: F401 -- patches hydra for Python 3.14 compat
+import hydra_zen
 import hydra
 from omegaconf import OmegaConf, open_dict
 from hydra.core.hydra_config import HydraConfig
