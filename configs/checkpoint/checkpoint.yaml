@@ -1,0 +1,10 @@
+enabled: true
+dir: checkpoints
+save_best_only: true
+save_last: true
+monitor: val_loss
+mode: min
+filename: "{ticker}_{model}_{epoch:03d}"
+save_optimizer: true
+save_scaler: true
+resume_from: null

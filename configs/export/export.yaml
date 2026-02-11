@@ -1,0 +1,13 @@
+enabled: true
+dir: .
+formats:
+  - pytorch
+  - onnx
+
+onnx:
+  opset_version: 14
+  dynamic_axes: true
+  input_names: ["input"]
+  output_names: ["output", "hidden", "cell"]
+
+filename: "{ticker}_{model}"

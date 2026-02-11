@@ -1,10 +1,18 @@
 defaults:
   - models: lstm
   - dataset: forex
+  - checkpoint: checkpoint
+  - export: export
   - _self_
 
 learning_rate: 0.001
-epochs: [10]
-batch_size: 32
+epochs: 1
+batch_size: 16
 num_workers: 0
 pin_memory: true
+
+hydra:
+  run:
+    dir: outputs/${dataset.ticker}_${models.name}/run_${run_number:${dataset.ticker},${models.name}}
+  job:
+    chdir: false

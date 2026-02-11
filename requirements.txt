@@ -1,5 +1,6 @@
 # --- Configuration & Environment ---
 hydra-core
+hydra-zen
 python-dotenv
 omegaconf
 
@@ -13,6 +14,6 @@ pandas
 scikit-learn
 pymongo
 
-# --- Optional but Recommended ---
+# --- Deep Learning ---
 matplotlib
 pillow
