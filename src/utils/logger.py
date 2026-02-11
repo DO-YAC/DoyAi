@@ -5,7 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 
 load_dotenv()
 
-def setup_wandb(cfg: DictConfig):
+def setup_wandb(config: DictConfig):
     """
     Handles automatic login and initializes a W&B run.
     """
@@ -15,7 +15,7 @@ def setup_wandb(cfg: DictConfig):
     else:
         print("⚠️ No WANDB_API_KEY found in .env. Logging in may be manual.")
 
-    conf_dict = OmegaConf.to_container(cfg, resolve=True)
+    conf_dict = OmegaConf.to_container(config, resolve=True)
 
     print(f"Configuration:\n{conf_dict}")
 
@@ -24,7 +24,7 @@ def setup_wandb(cfg: DictConfig):
         project=os.getenv("WANDB_PROJECT"),
         config=conf_dict,
         job_type="train",
-        notes=f"Model: {cfg.models.name}"
+        notes=f"Model: {config.models.name}"
     )
     
     return run

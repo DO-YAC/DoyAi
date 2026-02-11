@@ -31,25 +31,25 @@ def resolve_run_number(ticker: str, model_name: str) -> str:
 OmegaConf.register_new_resolver("run_number", resolve_run_number)
 
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
-def train(cfg):
+def train(config):
     output_dir = Path(HydraConfig.get().runtime.output_dir)
-    with open_dict(cfg):
-        cfg.checkpoint.dir = str(output_dir / cfg.checkpoint.dir)
-        cfg.export.dir = str(output_dir) if cfg.export.dir == "." else str(output_dir / cfg.export.dir)
+    with open_dict(config):
+        config.checkpoint.dir = str(output_dir / config.checkpoint.dir)
+        config.export.dir = str(output_dir) if config.export.dir == "." else str(output_dir / config.export.dir)
 
-    run = setup_wandb(cfg)
+    run = setup_wandb(config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    print(f"\nLoading data for {cfg.dataset.ticker}...")
-    train_loader, val_loader, test_loader, pipeline = create_dataloaders(cfg)
+    print(f"\nLoading data for {config.dataset.ticker}...")
+    train_loader, val_loader, test_loader, pipeline = create_dataloaders(config)
     print(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}, Test batches: {len(test_loader)}\n")
 
-    model = get_model(cfg).to(device)
+    model = get_model(config).to(device)
     loss_fn = nn.MSELoss() 
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    checkpoint_manager = CheckpointManager(cfg)
+    checkpoint_manager = CheckpointManager(config)
     start_epoch = 0
 
     if checkpoint_manager.should_resume():
@@ -57,11 +57,11 @@ def train(cfg):
         start_epoch = checkpoint["epoch"] + 1
         print(f"Resuming training from epoch {start_epoch}")
 
-    for epoch in range(start_epoch, cfg.epochs):
+    for epoch in range(start_epoch, config.epochs):
         model.train()
         train_loss = 0.0
 
-        for batch_idx, (inputs, targets) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.epochs}")):
+        for batch_idx, (inputs, targets) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{config.epochs}")):
             inputs = inputs.to(device)
             targets = targets.to(device)
 
@@ -98,7 +98,7 @@ def train(cfg):
             "epoch": epoch
         })
 
-        print(f"Epoch {epoch+1}/{cfg.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
+        print(f"Epoch {epoch+1}/{config.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
 
         # Save checkpoint
         metrics = {"train_loss": train_loss, "val_loss": val_loss}
@@ -122,7 +122,7 @@ def train(cfg):
     run.log({"test/loss": test_loss})
 
     # Export model after training
-    exporter = ModelExporter(cfg)
+    exporter = ModelExporter(config)
     exported_paths = exporter.export(model, pipeline, device)
 
     if exported_paths:

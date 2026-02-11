@@ -17,33 +17,33 @@ class CheckpointManager:
     - Storing optimizer state and scaler parameters
     """
 
-    def __init__(self, cfg: DictConfig):
-        self.cfg = cfg
-        self.checkpoint_cfg = cfg.checkpoint
-        self.enabled = self.checkpoint_cfg.enabled
+    def __init__(self, config: DictConfig):
+        self.config = config
+        self.checkpoint_config = config.checkpoint
+        self.enabled = self.checkpoint_config.enabled
 
         if not self.enabled:
             return
 
-        self.checkpoint_dir = Path(self.checkpoint_cfg.dir)
+        self.checkpoint_dir = Path(self.checkpoint_config.dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        self.save_best_only = self.checkpoint_cfg.save_best_only
-        self.save_last = self.checkpoint_cfg.save_last
-        self.monitor = self.checkpoint_cfg.monitor
-        self.mode = self.checkpoint_cfg.mode
-        self.save_optimizer = self.checkpoint_cfg.save_optimizer
-        self.save_scaler = self.checkpoint_cfg.save_scaler
+        self.save_best_only = self.checkpoint_config.save_best_only
+        self.save_last = self.checkpoint_config.save_last
+        self.monitor = self.checkpoint_config.monitor
+        self.mode = self.checkpoint_config.mode
+        self.save_optimizer = self.checkpoint_config.save_optimizer
+        self.save_scaler = self.checkpoint_config.save_scaler
 
         self.best_value = float("inf") if self.mode == "min" else float("-inf")
         self.best_epoch = -1
 
     def format_filename(self, epoch: int, suffix: str = "") -> str:
         """Format checkpoint filename using template."""
-        template = self.checkpoint_cfg.filename
+        template = self.checkpoint_config.filename
         filename = template.format(
-            ticker=self.cfg.dataset.ticker,
-            model=self.cfg.models.name,
+            ticker=self.config.dataset.ticker,
+            model=self.config.models.name,
             epoch=epoch
         )
         if suffix:
@@ -115,7 +115,7 @@ class CheckpointManager:
             checkpoint = self.create_checkpoint(
                 model, optimizer, epoch, metrics, pipeline
             )
-            last_path = self.checkpoint_dir / f"{self.cfg.dataset.ticker}_{self.cfg.models.name}_last.pt"
+            last_path = self.checkpoint_dir / f"{self.config.dataset.ticker}_{self.config.models.name}_last.pt"
             torch.save(checkpoint, last_path)
 
         return saved_path
@@ -133,7 +133,7 @@ class CheckpointManager:
             "epoch": epoch,
             "model_state_dict": model.state_dict(),
             "metrics": metrics,
-            "config": OmegaConf.to_container(self.cfg, resolve=True),
+            "config": OmegaConf.to_container(self.config, resolve=True),
             "best_value": self.best_value,
             "best_epoch": self.best_epoch,
         }
@@ -167,7 +167,7 @@ class CheckpointManager:
         Returns:
             Checkpoint dictionary with metadata
         """
-        checkpoint_path = path or self.checkpoint_cfg.resume_from
+        checkpoint_path = path or self.checkpoint_config.resume_from
 
         if checkpoint_path is None:
             raise ValueError("No checkpoint path provided")
@@ -193,4 +193,4 @@ class CheckpointManager:
 
     def should_resume(self) -> bool:
         """Check if training should resume from checkpoint."""
-        return self.enabled and self.checkpoint_cfg.resume_from is not None
+        return self.enabled and self.checkpoint_config.resume_from is not None

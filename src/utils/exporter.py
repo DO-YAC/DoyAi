@@ -14,25 +14,25 @@ class ModelExporter:
     - onnx: ONNX format for cross-platform inference
     """
 
-    def __init__(self, cfg: DictConfig):
-        self.cfg = cfg
-        self.export_cfg = cfg.export
-        self.enabled = self.export_cfg.enabled
+    def __init__(self, config: DictConfig):
+        self.config = config
+        self.export_config = config.export
+        self.enabled = self.export_config.enabled
 
         if not self.enabled:
             return
 
-        self.export_dir = Path(self.export_cfg.dir)
+        self.export_dir = Path(self.export_config.dir)
         self.export_dir.mkdir(parents=True, exist_ok=True)
 
-        self.formats = list(self.export_cfg.formats)
+        self.formats = list(self.export_config.formats)
 
     def format_filename(self, format_ext: str) -> str:
         """Format export filename using template."""
-        template = self.export_cfg.filename
+        template = self.export_config.filename
         filename = template.format(
-            ticker=self.cfg.dataset.ticker,
-            model=self.cfg.models.name
+            ticker=self.config.dataset.ticker,
+            model=self.config.models.name
         )
         return f"{filename}.{format_ext}"
 
@@ -64,21 +64,21 @@ class ModelExporter:
 
         print(f"\nExporting model to: {self.export_dir}")
 
-        for fmt in self.formats:
+        for format in self.formats:
             try:
-                if fmt == "pytorch":
+                if format == "pytorch":
                     path = self.export_pytorch(model, pipeline)
-                elif fmt == "onnx":
+                elif format == "onnx":
                     path = self.export_onnx(model, device)
                 else:
-                    print(f"  -> Unknown format: {fmt}, skipping")
+                    print(f"  -> Unknown format: {format}, skipping")
                     continue
 
-                exported_paths[fmt] = path
-                print(f"  -> Exported {fmt}: {Path(path).name}")
+                exported_paths[format] = path
+                print(f"  -> Exported {format}: {Path(path).name}")
 
             except Exception as e:
-                print(f"  -> Failed to export {fmt}: {e}")
+                print(f"  -> Failed to export {format}: {e}")
 
         return exported_paths
 
@@ -89,17 +89,17 @@ class ModelExporter:
         export_dict = {
             "model_state_dict": model.state_dict(),
             "model_config": {
-                "name": self.cfg.models.name,
-                "input_dim": self.cfg.models.input_dim,
-                "hidden_dim": self.cfg.models.hidden_dim,
-                "layer_dim": self.cfg.models.layer_dim,
-                "output_dim": self.cfg.models.output_dim,
+                "name": self.config.models.name,
+                "input_dim": self.config.models.input_dim,
+                "hidden_dim": self.config.models.hidden_dim,
+                "layer_dim": self.config.models.layer_dim,
+                "output_dim": self.config.models.output_dim,
             },
             "dataset_config": {
-                "ticker": self.cfg.dataset.ticker,
-                "features": list(self.cfg.dataset.features),
-                "sequence_length": self.cfg.dataset.sequence_length,
-                "prediction_horizon": self.cfg.dataset.prediction_horizon,
+                "ticker": self.config.dataset.ticker,
+                "features": list(self.config.dataset.features),
+                "sequence_length": self.config.dataset.sequence_length,
+                "prediction_horizon": self.config.dataset.prediction_horizon,
             },
         }
 
@@ -114,11 +114,11 @@ class ModelExporter:
     def export_onnx(self, model: torch.nn.Module, device: torch.device) -> str:
         """Export to ONNX format."""
         path = self.export_dir / self.format_filename("onnx")
-        onnx_cfg = self.export_cfg.onnx
+        onnx_config = self.export_config.onnx
 
         batch_size = 1
-        sequence_length = self.cfg.dataset.sequence_length
-        input_dim = self.cfg.models.input_dim
+        sequence_length = self.config.dataset.sequence_length
+        input_dim = self.config.models.input_dim
 
         dummy_input = torch.randn(
             batch_size, sequence_length, input_dim,
@@ -126,7 +126,7 @@ class ModelExporter:
         )
 
         dynamic_axes = None
-        if onnx_cfg.dynamic_axes:
+        if onnx_config.dynamic_axes:
             dynamic_axes = {
                 "input": {0: "batch_size", 1: "sequence_length"},
                 "output": {0: "batch_size"},
@@ -139,10 +139,10 @@ class ModelExporter:
             dummy_input,
             str(path),
             export_params=True,
-            opset_version=onnx_cfg.opset_version,
+            opset_version=onnx_config.opset_version,
             do_constant_folding=True,
-            input_names=list(onnx_cfg.input_names),
-            output_names=list(onnx_cfg.output_names),
+            input_names=list(onnx_config.input_names),
+            output_names=list(onnx_config.output_names),
             dynamic_axes=dynamic_axes,
             dynamo=False,
         )
