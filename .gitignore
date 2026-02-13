@@ -1,3 +1,4 @@
+.idea
 .env
 eurusd_lstm.onnx    
 eurusd_lstm.pt

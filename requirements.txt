@@ -12,8 +12,10 @@ tqdm
 numpy
 pandas
 scikit-learn
+scipy
 pymongo
 
 # --- Deep Learning ---
+onnx
 matplotlib
 pillow

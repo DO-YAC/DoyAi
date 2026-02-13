@@ -6,7 +6,7 @@ defaults:
   - _self_
 
 learning_rate: 0.001
-epochs: 1
+epochs: 10
 batch_size: 16
 num_workers: 0
 pin_memory: true

@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
 import hydra_zen
@@ -13,6 +14,7 @@ from utils.factory import get_model
 from utils.logger import setup_wandb
 from utils.checkpoint import CheckpointManager
 from utils.exporter import ModelExporter
+from utils.metrics import MetricsCalculator
 from data import create_dataloaders
 
 def resolve_run_number(ticker: str, model_name: str) -> str:
@@ -46,8 +48,9 @@ def train(cfg):
     print(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}, Test batches: {len(test_loader)}\n")
 
     model = get_model(cfg).to(device)
-    loss_fn = nn.MSELoss() 
+    loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
+    metrics_calculator = MetricsCalculator()
 
     checkpoint_manager = CheckpointManager(cfg)
     start_epoch = 0
@@ -79,6 +82,8 @@ def train(cfg):
 
         model.eval()
         val_loss = 0.0
+        val_predictions = []
+        val_targets = []
 
         with torch.no_grad():
             for inputs, targets in val_loader:
@@ -90,22 +95,35 @@ def train(cfg):
                 loss = loss_fn(outputs, targets)
                 val_loss += loss.item()
 
+                val_predictions.append(outputs.cpu().numpy())
+                val_targets.append(targets.cpu().numpy())
+
         val_loss /= len(val_loader)
 
-        run.log({
+        val_predictions = np.concatenate(val_predictions)
+        val_targets = np.concatenate(val_targets)
+        val_metrics = metrics_calculator.compute(val_predictions, val_targets, pipeline)
+
+        log_dict = {
             "train/loss": train_loss,
             "val/loss": val_loss,
-            "epoch": epoch
-        })
+            "epoch": epoch,
+        }
+        for key, value in val_metrics.items():
+            log_dict[f"val/{key}"] = value
+        run.log(log_dict)
 
         print(f"Epoch {epoch+1}/{cfg.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
+        print(f"  Val R²: {val_metrics['regression/r2']:.4f} | Val DA: {val_metrics['directional/accuracy']:.1f}% | Val MAE (pips): {val_metrics.get('real_scale/mae_pips', 0):.2f}")
 
         # Save checkpoint
-        metrics = {"train_loss": train_loss, "val_loss": val_loss}
+        metrics = {"train_loss": train_loss, "val_loss": val_loss, **{f"val_{k}": v for k, v in val_metrics.items()}}
         checkpoint_manager.save(model, optimizer, epoch, metrics, pipeline)
 
     model.eval()
     test_loss = 0.0
+    test_preds = []
+    test_targets = []
 
     with torch.no_grad():
         for inputs, targets in test_loader:
@@ -117,9 +135,24 @@ def train(cfg):
             loss = loss_fn(outputs, targets)
             test_loss += loss.item()
 
+            test_preds.append(outputs.cpu().numpy())
+            test_targets.append(targets.cpu().numpy())
+
     test_loss /= len(test_loader)
+
+    test_preds = np.concatenate(test_preds)
+    test_targets = np.concatenate(test_targets)
+    test_metrics = metrics_calculator.compute(test_preds, test_targets, pipeline)
+
+    test_log = {"test/loss": test_loss}
+    for key, value in test_metrics.items():
+        test_log[f"test/{key}"] = value
+    run.log(test_log)
+
     print(f"\nFinal Test Loss: {test_loss:.6f}")
-    run.log({"test/loss": test_loss})
+    print(f"  Test R²: {test_metrics['regression/r2']:.4f} | Test DA: {test_metrics['directional/accuracy']:.1f}% | Test MAE (pips): {test_metrics.get('real_scale/mae_pips', 0):.2f}")
+    print(f"  Test RMSE: {test_metrics['regression/rmse']:.6f} | Test MAE: {test_metrics['regression/mae']:.6f}")
+    print(f"  Test Bias: {test_metrics['error_dist/mean_error_bias']:.6f} | Test Error Std: {test_metrics['error_dist/std']:.6f}")
 
     # Export model after training
     exporter = ModelExporter(cfg)
