@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+import wandb
 import hydra_zen
 import hydra
 from omegaconf import OmegaConf, open_dict
@@ -39,7 +40,17 @@ def train(cfg):
         cfg.checkpoint.dir = str(output_dir / cfg.checkpoint.dir)
         cfg.export.dir = str(output_dir) if cfg.export.dir == "." else str(output_dir / cfg.export.dir)
 
-    run = setup_wandb(cfg)
+    run_name = f"{cfg.dataset.ticker}_{cfg.models.name}_{output_dir.name}"
+    run = setup_wandb(cfg, run_name=run_name)
+
+    wandb.define_metric("epoch")
+    wandb.define_metric("loss/*", step_metric="epoch")
+    wandb.define_metric("regression/*", step_metric="epoch")
+    wandb.define_metric("percentage/*", step_metric="epoch")
+    wandb.define_metric("directional/*", step_metric="epoch")
+    wandb.define_metric("real_scale/*", step_metric="epoch")
+    wandb.define_metric("error_dist/*", step_metric="epoch")
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -105,12 +116,13 @@ def train(cfg):
         val_metrics = metrics_calculator.compute(val_predictions, val_targets, pipeline)
 
         log_dict = {
-            "train/loss": train_loss,
-            "val/loss": val_loss,
             "epoch": epoch,
+            "loss/train": train_loss,
+            "loss/val": val_loss,
         }
         for key, value in val_metrics.items():
-            log_dict[f"val/{key}"] = value
+            category, metric = key.split("/", 1)
+            log_dict[f"{category}/val_{metric}"] = value
         run.log(log_dict)
 
         print(f"Epoch {epoch+1}/{cfg.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
@@ -144,10 +156,10 @@ def train(cfg):
     test_targets = np.concatenate(test_targets)
     test_metrics = metrics_calculator.compute(test_preds, test_targets, pipeline)
 
-    test_log = {"test/loss": test_loss}
+    run.summary["test/loss"] = test_loss
     for key, value in test_metrics.items():
-        test_log[f"test/{key}"] = value
-    run.log(test_log)
+        category, metric = key.split("/", 1)
+        run.summary[f"test/{category}_{metric}"] = value
 
     print(f"\nFinal Test Loss: {test_loss:.6f}")
     print(f"  Test R²: {test_metrics['regression/r2']:.4f} | Test DA: {test_metrics['directional/accuracy']:.1f}% | Test MAE (pips): {test_metrics.get('real_scale/mae_pips', 0):.2f}")
