@@ -77,7 +77,12 @@ class MetricsCalculator:
 
         ss_res = np.sum(errors ** 2)
         ss_tot = np.sum((targets - np.mean(targets)) ** 2)
-        r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 0 else 0.0
+        if ss_tot > 0:
+            r2 = float(1.0 - ss_res / ss_tot)
+        else:
+            # R² is undefined when there is no variance in the targets (ss_tot == 0)
+            # Use NaN to distinguish this degenerate case from a genuine score of 0.0.
+            r2 = float("nan")
 
         return {
             "regression/mse": mse,
