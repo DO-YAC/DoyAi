@@ -40,6 +40,7 @@ class MetricsCalculator:
         Returns:
             Flat dictionary of metric_name -> value.
         """
+
         predictions = predictions.flatten()
         targets = targets.flatten()
 
@@ -78,8 +79,6 @@ class MetricsCalculator:
         if ss_tot > 0:
             r2 = float(1.0 - ss_res / ss_tot)
         else:
-            # R² is undefined when there is no variance in the targets (ss_tot == 0)
-            # Use NaN to distinguish this degenerate case from a genuine score of 0.0.
             r2 = float("nan")
 
         return {
@@ -98,6 +97,7 @@ class MetricsCalculator:
         Accuracy            : The percentage of time the model correctly guessed if the price would go Up or Down.
         Weighted Accuracy   : Directional accuracy that prioritizes being correct on large price swings over small ones.
         """
+
         if len(predictions) < 2:
             return {
                 "directional/accuracy": float("nan"),
@@ -138,6 +138,7 @@ class MetricsCalculator:
         MAPE        : Mean Absolute Percentage Error on real prices (safe from near-zero distortion).
         sMAPE       : Symmetric MAPE on real prices.
         """
+
         real_preds = pipeline.inverse_transform(predictions, column="c")
         real_targets = pipeline.inverse_transform(targets, column="c")
 
