@@ -11,9 +11,8 @@ class MetricsCalculator:
 
     Metric categories:
     - regression   : Core regression metrics (RMSE, MAE, R², etc.)
-    - percentage   : Scale-independent metrics (MAPE, sMAPE)
     - directional  : Forecasting direction metrics (DA, weighted DA)
-    - real_scale   : Inverse-transformed metrics in original price units
+    - real_scale   : Inverse-transformed metrics in original price units (incl. MAPE, sMAPE)
     - error_dist   : Error distribution statistics (bias, std, percentiles, skew, kurtosis)
     """
 
@@ -28,7 +27,7 @@ class MetricsCalculator:
         self,
         predictions: np.ndarray,
         targets: np.ndarray,
-        pipeline=None,
+        pipeline: Optional[Pipeline] =None,
     ) -> Dict[str, float]:
         """
         Compute all metrics.
@@ -46,7 +45,6 @@ class MetricsCalculator:
 
         metrics = {}
         metrics.update(self.regression(predictions, targets))
-        metrics.update(self.percentage(predictions, targets))
         metrics.update(self.directional(predictions, targets))
         metrics.update(self.error_distribution(predictions, targets))
 
@@ -84,34 +82,6 @@ class MetricsCalculator:
             "regression/r2": r2,
             "regression/max_absolute_error": float(np.max(abs_errors)),
             "regression/median_absolute_error": float(np.median(abs_errors)),
-        }
-
-    def percentage(self, predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
-        """
-        Evaluate model performance using percentage scales.
-
-        MAPE    : Mean Absolute Percentage Error. Shows the average error as a percentage of the actual price.
-        sMAPE   : Symmetric MAPE. A balanced percentage metric that treats overestimates and underestimates equally.
-        """
-
-        mask = np.abs(targets) > 1e-8
-        if mask.sum() > 0:
-            mape = float(np.mean(np.abs((targets[mask] - predictions[mask]) / targets[mask])) * 100)
-        else:
-            mape = float("nan")
-
-        denom = np.abs(predictions) + np.abs(targets)
-        safe_mask = denom > 1e-8
-        if safe_mask.sum() > 0:
-            smape = float(
-                np.mean(2.0 * np.abs(predictions[safe_mask] - targets[safe_mask]) / denom[safe_mask]) * 100
-            )
-        else:
-            smape = float("nan")
-
-        return {
-            "percentage/mape": mape,
-            "percentage/smape": smape,
         }
 
     def directional(self, predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
@@ -158,6 +128,8 @@ class MetricsCalculator:
         RMSE        : The error metric that punishes big misses more severely.
         Max Error   : The single worst prediction made in this run.
         MAE Pips    : The average error translated into trading units.
+        MAPE        : Mean Absolute Percentage Error on real prices (safe from near-zero distortion).
+        sMAPE       : Symmetric MAPE on real prices.
         """
         real_preds = pipeline.inverse_transform(predictions, column="c")
         real_targets = pipeline.inverse_transform(targets, column="c")
@@ -170,18 +142,25 @@ class MetricsCalculator:
         max_error = float(np.max(abs_errors))
         mae_pips = mae / self.pip_size
 
+        mape = float(np.mean(abs_errors / np.abs(real_targets)) * 100)
+
+        denom = np.abs(real_preds) + np.abs(real_targets)
+        smape = float(np.mean(2.0 * abs_errors / denom) * 100)
+
         return {
             "real_scale/mae": mae,
             "real_scale/rmse": rmse,
             "real_scale/max_error": max_error,
             "real_scale/mae_pips": mae_pips,
+            "real_scale/mape": mape,
+            "real_scale/smape": smape,
         }
 
     def error_distribution(self, predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
         """
         Analyze the statistical shape and reliability of errors.
 
-        Mean Error Bias : The average magnitude of your mistakes (on the absolute scale).
+        Mean Bias Error : The average bias of your mistakes.
         std             : How much your error sizes fluctuate; high values mean inconsistent performance.
         95th Percentile : 95% of errors fall below this value.
         99th Percentile : 99% of errors fall below this value.
@@ -193,7 +172,7 @@ class MetricsCalculator:
         abs_errors = np.abs(errors)
         n = abs_errors.size
 
-        mean_error_bias = float(np.mean(abs_errors))
+        mean_bias_error = float(np.mean(errors))
         std = float(np.std(abs_errors))
         percentile_95 = float(np.percentile(abs_errors, 95))
         percentile_99 = float(np.percentile(abs_errors, 99))
@@ -206,7 +185,7 @@ class MetricsCalculator:
             kurtosis = float("nan")
 
         return {
-            "error_dist/mean_error_bias": mean_error_bias,
+            "error_dist/mean_bias_error": mean_bias_error,
             "error_dist/std": std,
             "error_dist/percentile_95": percentile_95,
             "error_dist/percentile_99": percentile_99,

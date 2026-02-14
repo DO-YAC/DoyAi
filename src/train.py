@@ -46,7 +46,6 @@ def train(cfg):
     wandb.define_metric("epoch")
     wandb.define_metric("loss/*", step_metric="epoch")
     wandb.define_metric("regression/*", step_metric="epoch")
-    wandb.define_metric("percentage/*", step_metric="epoch")
     wandb.define_metric("directional/*", step_metric="epoch")
     wandb.define_metric("real_scale/*", step_metric="epoch")
     wandb.define_metric("error_dist/*", step_metric="epoch")
