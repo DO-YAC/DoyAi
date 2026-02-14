@@ -44,6 +44,8 @@ class MetricsCalculator:
         predictions = predictions.flatten()
         targets = targets.flatten()
 
+        if predictions.size == 0 or targets.size == 0:
+            raise ValueError("predictions and targets must be non-empty arrays")
         metrics = {}
         metrics.update(self.regression(predictions, targets))
         metrics.update(self.percentage(predictions, targets))
