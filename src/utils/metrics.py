@@ -2,6 +2,7 @@ from typing import Dict, Optional
 
 import numpy as np
 from scipy import stats
+from sklearn.pipeline import Pipeline
 
 
 class MetricsCalculator:
@@ -148,7 +149,7 @@ class MetricsCalculator:
         self,
         predictions: np.ndarray,
         targets: np.ndarray,
-        pipeline,
+        pipeline: Optional[Pipeline] = None,
     ) -> Dict[str, float]:
         """
         Compute metrics in original price scale.
@@ -190,13 +191,19 @@ class MetricsCalculator:
 
         errors = predictions - targets
         abs_errors = np.abs(errors)
+        n = abs_errors.size
 
         mean_error_bias = float(np.mean(abs_errors))
         std = float(np.std(abs_errors))
         percentile_95 = float(np.percentile(abs_errors, 95))
         percentile_99 = float(np.percentile(abs_errors, 99))
-        skewness = float(stats.skew(abs_errors))
-        kurtosis = float(stats.kurtosis(abs_errors))
+
+        if n >= 30:
+            skewness = float(stats.skew(abs_errors))
+            kurtosis = float(stats.kurtosis(abs_errors))
+        else:
+            skewness = float("nan")
+            kurtosis = float("nan")
 
         return {
             "error_dist/mean_error_bias": mean_error_bias,
