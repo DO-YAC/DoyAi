@@ -165,7 +165,7 @@ def train(cfg):
     print(f"\nFinal Test Loss: {test_loss:.6f}")
     print(f"  Test R²: {test_metrics['regression/r2']:.4f} | Test DA: {test_metrics['directional/accuracy']:.1f}% | Test MAE (pips): {test_metrics.get('real_scale/mae_pips', 0):.2f}")
     print(f"  Test RMSE: {test_metrics['regression/rmse']:.6f} | Test MAE: {test_metrics['regression/mae']:.6f}")
-    print(f"  Test Bias: {test_metrics['error_dist/mean_error_bias']:.6f} | Test Error Std: {test_metrics['error_dist/std']:.6f}")
+    print(f"  Test Bias: {test_metrics['error_dist/mean_bias_error']:.6f} | Test Error Std: {test_metrics['error_dist/std']:.6f}")
 
     # Export model after training
     exporter = ModelExporter(cfg)
