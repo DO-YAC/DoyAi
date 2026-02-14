@@ -120,6 +120,9 @@ def train(cfg):
             "loss/val": val_loss,
         }
         for key, value in val_metrics.items():
+            # Skip logging metrics that are NaN to avoid issues in W&B dashboards
+            if isinstance(value, float) and np.isnan(value):
+                continue
             category, metric = key.split("/", 1)
             log_dict[f"{category}/val_{metric}"] = value
         run.log(log_dict)
