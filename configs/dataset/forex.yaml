@@ -7,7 +7,7 @@ features:
   - l
   - c
 
-sequence_length: 60
+sequence_length: 20
 prediction_horizon: 1
 
 train_ratio: 0.7
