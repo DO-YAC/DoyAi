@@ -138,7 +138,6 @@ def train(cfg):
 
         backtester.log_to_wandb(backtest_results, run)
 
-        print(f"\nBacktest Results ({cfg.backtest.strategy} strategy):")
         print(f"  Trades: {backtest_results['num_trades']} | Win Rate: {backtest_results['win_rate']:.1f}%")
         print(f"  PnL: ${backtest_results['total_pnl']:.2f} ({backtest_results['total_pnl_pips']:.1f} pips)")
         print(f"  Sharpe: {backtest_results['sharpe_ratio']:.2f} | Max DD: {backtest_results['max_drawdown_pct']:.1f}%")
