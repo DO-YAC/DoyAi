@@ -119,7 +119,7 @@ def train(cfg):
         ckpt_manager.save(model, optimizer, epoch, metrics, pipeline)
 
     # --- Test evaluation ---
-    test_loss, _, _, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calculator, pipeline, device)
+    test_loss, test_preds, test_targets, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calculator, pipeline, device)
 
     run.summary["test/loss"] = test_loss
     for key, value in test_metrics.items():

@@ -136,9 +136,12 @@ class Backtester:
         drawdown_pct = np.where(peak > 0, drawdown / peak, 0.0)
         max_drawdown_pct = float(np.max(drawdown_pct) * 100)
 
-        trade_returns = pnl_currency / equity[:-1]
-        if np.std(trade_returns) > 0:
-            sharpe_ratio = float(np.mean(trade_returns) / np.std(trade_returns) * np.sqrt(self.annualization_factor))
+        safe_equity = equity[:-1].copy()
+        safe_equity[safe_equity <= 0] = np.nan
+        trade_returns = pnl_currency / safe_equity
+        finite_returns = trade_returns[np.isfinite(trade_returns)]
+        if len(finite_returns) > 1 and np.std(finite_returns) > 0:
+            sharpe_ratio = float(np.mean(finite_returns) / np.std(finite_returns) * np.sqrt(self.annualization_factor))
         else:
             sharpe_ratio = 0.0
 
@@ -148,7 +151,7 @@ class Backtester:
         longest_win_streak = self.longest_streak(pnl_pips > 0)
         longest_loss_streak = self.longest_streak(pnl_pips < 0)
 
-        return_pct = total_pnl / self.initial_capital * 100
+        return_pct = total_pnl / self.initial_capital * 100 if self.initial_capital > 0 else 0.0
 
         return {
             "num_trades": num_trades,
@@ -181,7 +184,7 @@ class Backtester:
             return 0
         return int(np.max(ends - starts))
 
-    def log_to_wandb(self, results: Dict, run: wandb.sdk.wandb_run.Run) -> None:
+    def log_to_wandb(self, results: Dict, run) -> None:
         """Log backtest metrics and charts to W&B under the backtest/* prefix."""
         if not self.cfg.log_to_wandb:
             return
