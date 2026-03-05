@@ -1,0 +1,9 @@
+enabled: true
+initial_capital: 10000.0
+spread_pips: 1.0
+pip_size: 0.0001
+position_size: 1.0
+pip_value: 10.0
+
+threshold_pips: 0.0
+log_to_wandb: true
