@@ -76,7 +76,7 @@ def train(cfg):
     model = get_model(cfg).to(device)
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
-    metrics_calc = MetricsCalculator()
+    metrics_calculator = MetricsCalculator()
 
     ckpt_manager = CheckpointManager(cfg)
     start_epoch = 0
@@ -101,7 +101,7 @@ def train(cfg):
 
         train_loss /= len(train_loader)
 
-        val_loss, _, _, val_metrics = evaluate(model, val_loader, loss_fn, metrics_calc, pipeline, device)
+        val_loss, _, _, val_metrics = evaluate(model, val_loader, loss_fn, metrics_calculator, pipeline, device)
 
         log_dict = {"epoch": epoch, "loss/train": train_loss, "loss/val": val_loss}
         for key, value in val_metrics.items():
@@ -118,7 +118,7 @@ def train(cfg):
         ckpt_manager.save(model, optimizer, epoch, metrics, pipeline)
 
     # --- Test evaluation ---
-    test_loss, _, _, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calc, pipeline, device)
+    test_loss, _, _, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calculator, pipeline, device)
 
     run.summary["test/loss"] = test_loss
     for key, value in test_metrics.items():
