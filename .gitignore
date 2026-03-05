@@ -6,3 +6,4 @@ main.ipynb
 outputs/
 wandb/
 __pycache__/
+models

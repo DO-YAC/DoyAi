@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +32,26 @@ def resolve_run_number(ticker: str, model_name: str) -> str:
 
 OmegaConf.register_new_resolver("run_number", resolve_run_number)
 
+def evaluate(model, loader, loss_fn, metrics_calculator, pipeline, device):
+    """Run evaluation on a dataloader, return loss, predictions, targets, and metrics."""
+    model.eval()
+    total_loss = 0.0
+    all_preds, all_targets = [], []
+
+    with torch.no_grad():
+        for inputs, targets in loader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs, _, _ = model(inputs)
+            outputs = outputs.squeeze(-1)
+            total_loss += loss_fn(outputs, targets).item()
+            all_preds.append(outputs.cpu().numpy())
+            all_targets.append(targets.cpu().numpy())
+
+    preds = np.concatenate(all_preds)
+    targets = np.concatenate(all_targets)
+    return total_loss / len(loader), preds, targets, metrics_calculator.compute(preds, targets, pipeline)
+
+
 @hydra.main(config_path="../configs", config_name="config", version_base="1.3")
 def train(cfg):
     output_dir = Path(HydraConfig.get().runtime.output_dir)
@@ -44,11 +63,8 @@ def train(cfg):
     run = setup_wandb(cfg, run_name=run_name)
 
     wandb.define_metric("epoch")
-    wandb.define_metric("loss/*", step_metric="epoch")
-    wandb.define_metric("regression/*", step_metric="epoch")
-    wandb.define_metric("directional/*", step_metric="epoch")
-    wandb.define_metric("real_scale/*", step_metric="epoch")
-    wandb.define_metric("error_dist/*", step_metric="epoch")
+    for prefix in ("loss/*", "regression/*", "directional/*", "real_scale/*", "error_dist/*"):
+        wandb.define_metric(prefix, step_metric="epoch")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -62,63 +78,32 @@ def train(cfg):
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.learning_rate)
     metrics_calculator = MetricsCalculator()
 
-    checkpoint_manager = CheckpointManager(cfg)
+    ckpt_manager = CheckpointManager(cfg)
     start_epoch = 0
-
-    if checkpoint_manager.should_resume():
-        checkpoint = checkpoint_manager.load(model, optimizer, device=device)
-        start_epoch = checkpoint["epoch"] + 1
+    if ckpt_manager.should_resume():
+        start_epoch = ckpt_manager.load(model, optimizer, device=device)["epoch"] + 1
         print(f"Resuming training from epoch {start_epoch}")
 
+    # --- Training loop ---
     for epoch in range(start_epoch, cfg.epochs):
         model.train()
         train_loss = 0.0
 
-        for batch_idx, (inputs, targets) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.epochs}")):
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-
+        for inputs, targets in tqdm(train_loader, desc=f"Epoch {epoch+1}/{cfg.epochs}"):
+            inputs, targets = inputs.to(device), targets.to(device)
             outputs, _, _ = model(inputs)
-            outputs = outputs.squeeze(-1)
-            loss = loss_fn(outputs, targets)
+            loss = loss_fn(outputs.squeeze(-1), targets)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
             train_loss += loss.item()
 
         train_loss /= len(train_loader)
 
-        model.eval()
-        val_loss = 0.0
-        val_predictions = []
-        val_targets = []
+        val_loss, _, _, val_metrics = evaluate(model, val_loader, loss_fn, metrics_calculator, pipeline, device)
 
-        with torch.no_grad():
-            for inputs, targets in val_loader:
-                inputs = inputs.to(device)
-                targets = targets.to(device)
-
-                outputs, _, _ = model(inputs)
-                outputs = outputs.squeeze(-1)
-                loss = loss_fn(outputs, targets)
-                val_loss += loss.item()
-
-                val_predictions.append(outputs.cpu().numpy())
-                val_targets.append(targets.cpu().numpy())
-
-        val_loss /= len(val_loader)
-
-        val_predictions = np.concatenate(val_predictions)
-        val_targets = np.concatenate(val_targets)
-        val_metrics = metrics_calculator.compute(val_predictions, val_targets, pipeline)
-
-        log_dict = {
-            "epoch": epoch,
-            "loss/train": train_loss,
-            "loss/val": val_loss,
-        }
+        log_dict = {"epoch": epoch, "loss/train": train_loss, "loss/val": val_loss}
         for key, value in val_metrics.items():
             if isinstance(value, float) and np.isnan(value):
                 continue
@@ -129,33 +114,11 @@ def train(cfg):
         print(f"Epoch {epoch+1}/{cfg.epochs} | Train Loss: {train_loss:.6f} | Val Loss: {val_loss:.6f}")
         print(f"  Val R²: {val_metrics['regression/r2']:.4f} | Val DA: {val_metrics['directional/accuracy']:.1f}% | Val MAE (pips): {val_metrics.get('real_scale/mae_pips', 0):.2f}")
 
-        # Save checkpoint
         metrics = {"train_loss": train_loss, "val_loss": val_loss, **{f"val_{k}": v for k, v in val_metrics.items()}}
-        checkpoint_manager.save(model, optimizer, epoch, metrics, pipeline)
+        ckpt_manager.save(model, optimizer, epoch, metrics, pipeline)
 
-    model.eval()
-    test_loss = 0.0
-    test_preds = []
-    test_targets = []
-
-    with torch.no_grad():
-        for inputs, targets in test_loader:
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-
-            outputs, _, _ = model(inputs)
-            outputs = outputs.squeeze(-1)
-            loss = loss_fn(outputs, targets)
-            test_loss += loss.item()
-
-            test_preds.append(outputs.cpu().numpy())
-            test_targets.append(targets.cpu().numpy())
-
-    test_loss /= len(test_loader)
-
-    test_preds = np.concatenate(test_preds)
-    test_targets = np.concatenate(test_targets)
-    test_metrics = metrics_calculator.compute(test_preds, test_targets, pipeline)
+    # --- Test evaluation ---
+    test_loss, _, _, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calculator, pipeline, device)
 
     run.summary["test/loss"] = test_loss
     for key, value in test_metrics.items():
@@ -167,10 +130,8 @@ def train(cfg):
     print(f"  Test RMSE: {test_metrics['regression/rmse']:.6f} | Test MAE: {test_metrics['regression/mae']:.6f}")
     print(f"  Test Bias: {test_metrics['error_dist/mean_bias_error']:.6f} | Test Error Std: {test_metrics['error_dist/std']:.6f}")
 
-    # Export model after training
     exporter = ModelExporter(cfg)
     exported_paths = exporter.export(model, pipeline, device)
-
     if exported_paths:
         run.log({"exported_formats": list(exported_paths.keys())})
 
