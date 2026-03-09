@@ -3,6 +3,7 @@ defaults:
   - dataset: forex
   - checkpoint: checkpoint
   - export: export
+  - backtest: backtest
   - _self_
 
 learning_rate: 0.001

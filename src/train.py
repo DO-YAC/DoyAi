@@ -15,6 +15,7 @@ from utils.logger import setup_wandb
 from utils.checkpoint import CheckpointManager
 from utils.exporter import ModelExporter
 from utils.metrics import MetricsCalculator
+from utils.backtester import Backtester
 from data import create_dataloaders
 
 def resolve_run_number(ticker: str, model_name: str) -> str:
@@ -118,7 +119,7 @@ def train(cfg):
         ckpt_manager.save(model, optimizer, epoch, metrics, pipeline)
 
     # --- Test evaluation ---
-    test_loss, _, _, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calculator, pipeline, device)
+    test_loss, test_preds, test_targets, test_metrics = evaluate(model, test_loader, loss_fn, metrics_calculator, pipeline, device)
 
     run.summary["test/loss"] = test_loss
     for key, value in test_metrics.items():
@@ -129,6 +130,17 @@ def train(cfg):
     print(f"  Test R²: {test_metrics['regression/r2']:.4f} | Test DA: {test_metrics['directional/accuracy']:.1f}% | Test MAE (pips): {test_metrics.get('real_scale/mae_pips', 0):.2f}")
     print(f"  Test RMSE: {test_metrics['regression/rmse']:.6f} | Test MAE: {test_metrics['regression/mae']:.6f}")
     print(f"  Test Bias: {test_metrics['error_dist/mean_bias_error']:.6f} | Test Error Std: {test_metrics['error_dist/std']:.6f}")
+
+    # --- Backtesting ---
+    if cfg.backtest.enabled:
+        backtester = Backtester(cfg.backtest)
+        backtest_results = backtester.run(test_preds, test_targets, pipeline)
+
+        backtester.log_to_wandb(backtest_results, run)
+
+        print(f"  Trades: {backtest_results['num_trades']} | Win Rate: {backtest_results['win_rate']:.1f}%")
+        print(f"  PnL: ${backtest_results['total_pnl']:.2f} ({backtest_results['total_pnl_pips']:.1f} pips)")
+        print(f"  Sharpe: {backtest_results['sharpe_ratio']:.2f} | Max DD: {backtest_results['max_drawdown_pct']:.1f}%")
 
     exporter = ModelExporter(cfg)
     exported_paths = exporter.export(model, pipeline, device)
