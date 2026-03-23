@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 from typing import Dict, Any
 import torch
+import onnx
 from omegaconf import DictConfig
 from utils.serialization import serialize_scaler
 
@@ -69,7 +71,7 @@ class ModelExporter:
                 if fmt == "pytorch":
                     path = self.export_pytorch(model, pipeline)
                 elif fmt == "onnx":
-                    path = self.export_onnx(model, device)
+                    path = self.export_onnx(model, device, pipeline)
                 else:
                     print(f"  -> Unknown format: {fmt}, skipping")
                     continue
@@ -111,8 +113,8 @@ class ModelExporter:
         torch.save(export_dict, path)
         return str(path)
 
-    def export_onnx(self, model: torch.nn.Module, device: torch.device) -> str:
-        """Export to ONNX format."""
+    def export_onnx(self, model: torch.nn.Module, device: torch.device, pipeline: Any = None) -> str:
+        """Export to ONNX format with embedded metadata."""
         path = self.export_dir / self.format_filename("onnx")
         onnx_cfg = self.export_cfg.onnx
 
@@ -146,5 +148,25 @@ class ModelExporter:
             dynamic_axes=dynamic_axes,
             dynamo=False,
         )
+
+        onnx_model = onnx.load(str(path))
+
+        metadata = {
+            "ticker": self.cfg.dataset.ticker,
+            "features": list(self.cfg.dataset.features),
+            "sequence_length": self.cfg.dataset.sequence_length,
+            "prediction_horizon": self.cfg.dataset.prediction_horizon,
+            "model_name": self.cfg.models.name,
+        }
+
+        if pipeline is not None and pipeline.scaler is not None:
+            metadata["scaler_type"] = self.cfg.dataset.scaler_type
+
+        for key, value in metadata.items():
+            entry = onnx_model.metadata_props.add()
+            entry.key = key
+            entry.value = json.dumps(value) if not isinstance(value, str) else value
+
+        onnx.save(onnx_model, str(path))
 
         return str(path)
